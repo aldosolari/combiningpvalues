@@ -1,0 +1,300 @@
+---
+title: "Combining Dependent p-values"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Vignette Title}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+
+Supplementary R code for reproducing the examples in the paper ``Combining Dependent p-values: Methods and Properties from a Practical Perspective'' by Gasparin M., Goeman J.J., Heller R. and Solari A.
+
+
+## Set up
+
+Install and load the required R packages:
+
+```{r, results='hide', message=F, warning=F, error=F, comment=NA}
+require("readxl") || install.packages("readxl")
+require("pmerge") || install.packages("pmerge")
+require("Iso") || install.packages("Iso")
+```
+
+## Domain-Level Analysis of the Functional Observational Battery
+
+The functional observational battery (FOB) is a biological screening assay consisting of $m=25$ endpoints grouped into six domains, each reflecting different aspects of neurological function, and is used to assess neurophysiological effects in animals following toxin exposure.
+
+```{r}
+# Load data
+options(timeout = 300)
+
+download.file(
+  "https://pasteur.epa.gov/uploads/10.23719/d-gsv0/Moser_1995_FOB.zip",
+  "moser.zip",
+  mode = "wb"
+)
+
+unzip("moser.zip")
+
+df <- as.data.frame(read_excel("E220RANK_Acute.xlsx"))
+
+# Restrict to dose groups 0 and 1500 at time point 4
+dat_raw <- df[
+  df$DOSE_CODE %in% c(0, 1500) &
+    df$TIME_OF_TESTING == 4,
+  -c(1:2, 4, 33:38)
+]
+
+# Convert variables to numeric
+dat_num <- data.frame(
+  lapply(dat_raw, function(x) as.numeric(as.character(x))),
+  check.names = FALSE
+)
+
+# Group endpoints by functional domain
+endpoints_by_domain <- list(
+  Autonomic = c(
+    "LACRIMATION", "SALIVATION", "PALPEBRAL_CLOSURE...6",
+    "PUPIL_RESPONSE", "URINATION", "DEFECATION"
+  ),
+  Activity = c(
+    "REARS", "HOME_CAGE_POSTURE"
+  ),
+  Excitability = c(
+    "EASE_OF_REMOVAL", "EASE_OF_HANDLING", "AROUSAL",
+    "CLONIC_CONVULSIONS", "TONIC_CONVULSIONS"
+  ),
+  Neuromuscular = c(
+    "GAIT_SCORE", "RIGHTING_REFLEX", "FORELIMB_GRIP",
+    "HINDLIMB_GRIP", "FOOT_SPLAY"
+  ),
+  Sensorimotor = c(
+    "TAIL_PINCH_RESPONSE", "CLICK_RESPONSE",
+    "TOUCH_RESPONSE", "APPROACH_RESPONSE"
+  ),
+  Physiological_measures = c(
+    "BODY_WEIGHT", "BODY_TEMPERATURE", "PILOERECTION"
+  ),
+  Other = c(
+    "DOSE_CODE", "MOBILITY_SCORE", "VOCALIZATIONS",
+    "PALPEBRAL_CLOSURE...10"
+  )
+)
+
+# Select domains for analysis
+domains_keep <- c(
+  "Autonomic",
+  "Activity",
+  "Excitability",
+  "Neuromuscular",
+  "Sensorimotor",
+  "Physiological_measures"
+)
+
+cols_keep <- c("DOSE_CODE", unlist(endpoints_by_domain[domains_keep]))
+dat <- dat_num[, intersect(cols_keep, names(dat_num)), drop = FALSE]
+```
+
+Score-free test statistic
+
+```{r}
+Tmax <- function(Y1, Y2, K = 4) {
+  # Ordered categories assumed to be 1,2,3,4 (K=4 by default).
+  # Works even if some categories are not observed.
+  
+  # drop NAs
+  Y1 <- Y1[!is.na(Y1)]
+  Y2 <- Y2[!is.na(Y2)]
+  
+  # basic checks
+  if (length(Y1) == 0 || length(Y2) == 0) return(NA_real_)
+  if (any(!Y1 %in% 1:K) || any(!Y2 %in% 1:K)) {
+    stop("Y1 and Y2 must take values in {1,2,...,K}.")
+  }
+  
+  # tabulate counts for all categories 1,...,K
+  r1 <- tabulate(Y1, nbins = K)
+  r2 <- tabulate(Y2, nbins = K)
+  t  <- r1 + r2
+  
+  # keep only pooled-observed categories
+  idx <- t > 0
+  c   <- sum(idx)
+  
+  n1 <- sum(r1)
+  n2 <- sum(r2)
+  if (n1 == 0 || n2 == 0) return(NA_real_)
+  
+  # group indicator
+  W <- rep(c(0, 1), times = c(n1, n2))
+  
+  # if only one category is observed overall
+  if (c <= 1) return(0)
+  
+  # stochastic ordering check
+  lhs <- cumsum(r2[idx]) / n2
+  rhs <- cumsum(r1[idx]) / n1
+  
+  if (sum(lhs >= rhs) == c) {
+    
+    M <- matrix(0, nrow = c - 1, ncol = c)
+    E <- matrix(0, nrow = c - 1, ncol = n1 + n2)
+    F <- numeric(c - 1)
+    
+    for (i in 1:(c - 1)) {
+      M[i, ] <- rep(c(0, 1), times = c(i, c - i))
+      E[i, ] <- rep(c(M[i, ], M[i, ]),
+                    times = c(r1[idx], r2[idx]))
+      F[i]   <- suppressWarnings(cor(E[i, ], W, method = "pearson"))
+    }
+    
+    T <- max(F, na.rm = TRUE)
+    
+  } else {
+    
+    # isotonic regression branch
+    if (!exists("pava", mode = "function")) {
+      stop("pava() not found. Please source pava.R or load a package providing pava().")
+    }
+    
+    y   <- r2[idx] / t[idx]
+    w   <- t[idx]
+    iso <- pava(y, w)
+    
+    Yt  <- rep(c(iso, iso),
+               times = c(r1[idx], r2[idx]))
+    T   <- suppressWarnings(cor(Yt, W, method = "pearson"))
+  }
+  
+  as.numeric(T)
+}
+```
+
+
+
+For each endpoint, marginal counts of severity scores
+(1–4) for adverse effects observed are reported by exposure group (0 and 1.5g/kg). Endpoints are grouped into functional domains.
+
+```{r}
+n <- sum(dat$DOSE_CODE == 0)
+N <- nrow(dat)
+m <- ncol(dat) - 1
+Z <- as.matrix(dat[, -1])
+perms <- combn(1:N, n)
+B <- ncol(perms)
+
+# ---- Marginal counts (scores 1–4)
+
+freq_fun <- function(x) {
+  t(apply(x, 2, function(col)
+    tabulate(factor(col, levels = 1:4), nbins = 4)))
+}
+
+g1 <- Z[1:8, ]
+g2 <- Z[9:16, ]
+
+f1 <- freq_fun(g1)
+f2 <- freq_fun(g2)
+
+mfreq <- cbind(f1, f2)
+colnames(mfreq) <- c(1:4, 1:4)
+rownames(mfreq) <- colnames(Z)
+
+Tstat <- matrix(NA, nrow = B, ncol = m)
+
+for (b in 1:B) {
+  Zperm <- rbind(Z[perms[, b], ], Z[-perms[, b], ])
+  Tstat[b, ] <- sapply(
+    1:ncol(Zperm),
+    function(i) Tmax(Zperm[1:n, i], Zperm[(n + 1):N, i])
+  )
+}
+
+pval <- apply(Tstat, 2, function(t) mean(t >= t[1]))
+
+data.frame(mfreq, pval)
+```
+
+Domain-wise combined $p$-values.
+
+```{r}
+# ---- Domain-wise combination 
+domains <- endpoints_by_domain[-length(endpoints_by_domain)]
+domains$All <- 1:25
+domains <- c(tail(domains, 1), head(domains, -1))
+
+comb_funs <- c("Bonferroni","Simes","Hommel+","Fisher","Average","Median","Cauchy","Harmonic")
+
+res <- matrix(NA, nrow = length(domains), ncol = length(comb_funs) * 2)
+colnames(res) <- c(comb_funs, paste0(comb_funs, "U"))
+rownames(res) <- paste(names(domains), " (",sapply(domains,length),")", sep="")
+
+for (d in seq_along(domains)) {
+  
+  Zsel <- Z[, domains[[d]]]
+  Tstat <- matrix(NA, nrow = B, ncol = ncol(Zsel))
+  
+  for (b in 1:B) {
+    Zperm <- rbind(Zsel[perms[, b], ], Zsel[-perms[, b], ])
+    Tstat[b, ] <- sapply(
+      1:ncol(Zperm),
+      function(i) Tmax(Zperm[1:n, i], Zperm[(n + 1):N, i])
+    )
+  }
+  
+  pval <- apply(Tstat, 2, function(t) mean(t >= t[1]))
+  
+  Pmat <- apply(Tstat, 2, function(t) {
+    sapply(seq_along(t), function(i) mean(t >= t[i]))
+  })
+  
+  # ---- Joint permutation p-values ----
+  
+  minP <- apply(Pmat, 1, min)
+  res[d,1] <- mean(-minP >= -minP[1])
+  
+  SimesP <- apply(Pmat, 1, function(x) min(sort(x) * length(x)/(1:length(x))))
+  res[d,2] <- mean(-SimesP >= -SimesP[1])
+  
+  HommelP <- apply(Pmat, 1, function(x) min(sort(x) * length(x)/(1:length(x))))
+  res[d,3] <- mean(-HommelP >= -HommelP[1])
+  
+  FisherP <- apply(Pmat, 1, function(x) -sum(log(x)))
+  res[d,4] <- mean(FisherP >= FisherP[1])
+  
+  AverageP <- rowMeans(Pmat)
+  res[d,5] <- mean(-AverageP >= -AverageP[1])
+  
+  MedianP <- apply(Pmat, 1, function(x) sort(x)[ceiling(length(x)/2)])
+  res[d,6] <- mean(-MedianP >= -MedianP[1])
+  
+  CauchyP <- apply(Pmat, 1, function(x) atan(mean(tan(pi*(x-1/2))) )/pi+1/2 )
+  res[d,7] <- mean(-CauchyP >= -CauchyP[1])
+  
+  HarmonicP <- apply(Pmat, 1, function(x) mean(x^(-1))^(1/(-1)) )
+  res[d,8] <- mean(-HarmonicP >= -HarmonicP[1])
+  
+  # ---- Marginal combination ----
+  
+  res[d,9]  <- min(1, min(pval) * length(pval))
+  res[d,10] <- min(1, min(sort(pval) * length(pval)/(1:length(pval))))
+  res[d,11] <- pSimes(pval, method = "G")
+  res[d,12] <- pmean(pval, r = 0, dependence = "A")
+  res[d,13] <- min(1, 2 * mean(pval))
+  res[d,14] <- min(1, 2 * sort(pval)[ceiling(length(pval)/2)])
+  res[d,15] <- NA
+  res[d,16] <- ifelse(length(pval)>2, pharmonic(pval, method = "H2", censor = TRUE), NA )
+}
+
+res
+```
+
