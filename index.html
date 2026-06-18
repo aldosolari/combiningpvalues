@@ -11,7 +11,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 
 
-<meta name="date" content="2026-04-11" />
+<meta name="date" content="2026-06-18" />
 
 <title>Combining Dependent p-values</title>
 
@@ -339,19 +339,20 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 
 
 <h1 class="title toc-ignore">Combining Dependent p-values</h1>
-<h4 class="date">2026-04-11</h4>
+<h4 class="date">2026-06-18</h4>
 
 
 
 <p>Supplementary R code for reproducing the examples in the paper
 ``Combining Dependent p-values: Methods and Properties from a Practical
 Perspective’’ by Gasparin M., Goeman J.J., Heller R. and Solari A.</p>
-<div id="set-up" class="section level2">
-<h2>Set up</h2>
-<p>Install and load the required R packages:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="fu">require</span>(<span class="st">&quot;readxl&quot;</span>) <span class="sc">||</span> <span class="fu">install.packages</span>(<span class="st">&quot;readxl&quot;</span>)</span>
-<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a><span class="fu">require</span>(<span class="st">&quot;pmerge&quot;</span>) <span class="sc">||</span> <span class="fu">install.packages</span>(<span class="st">&quot;pmerge&quot;</span>)</span>
-<span id="cb1-3"><a href="#cb1-3" tabindex="-1"></a><span class="fu">require</span>(<span class="st">&quot;Iso&quot;</span>) <span class="sc">||</span> <span class="fu">install.packages</span>(<span class="st">&quot;Iso&quot;</span>)</span></code></pre></div>
+<div id="setup" class="section level2">
+<h2>Setup</h2>
+<p>Install (if necessary) and load the required R packages:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="fu">require</span>(<span class="st">&quot;pmerge&quot;</span>) <span class="sc">||</span> <span class="fu">install.packages</span>(<span class="st">&quot;pmerge&quot;</span>)</span>
+<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a><span class="fu">require</span>(<span class="st">&quot;Iso&quot;</span>) <span class="sc">||</span> <span class="fu">install.packages</span>(<span class="st">&quot;Iso&quot;</span>)</span></code></pre></div>
+<p>Load the score-free test statistic function:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="fu">source</span>(<span class="st">&quot;Tmax.R&quot;</span>)</span></code></pre></div>
 </div>
 <div id="domain-level-analysis-of-the-functional-observational-battery" class="section level2">
 <h2>Domain-Level Analysis of the Functional Observational Battery</h2>
@@ -360,148 +361,66 @@ assay consisting of <span class="math inline">\(m=25\)</span> endpoints
 grouped into six domains, each reflecting different aspects of
 neurological function, and is used to assess neurophysiological effects
 in animals following toxin exposure.</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="co"># Load data</span></span>
-<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a><span class="fu">options</span>(<span class="at">timeout =</span> <span class="dv">300</span>)</span>
-<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a></span>
-<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a><span class="fu">download.file</span>(</span>
-<span id="cb2-5"><a href="#cb2-5" tabindex="-1"></a>  <span class="st">&quot;https://pasteur.epa.gov/uploads/10.23719/d-gsv0/Moser_1995_FOB.zip&quot;</span>,</span>
-<span id="cb2-6"><a href="#cb2-6" tabindex="-1"></a>  <span class="st">&quot;moser.zip&quot;</span>,</span>
-<span id="cb2-7"><a href="#cb2-7" tabindex="-1"></a>  <span class="at">mode =</span> <span class="st">&quot;wb&quot;</span></span>
-<span id="cb2-8"><a href="#cb2-8" tabindex="-1"></a>)</span>
-<span id="cb2-9"><a href="#cb2-9" tabindex="-1"></a></span>
-<span id="cb2-10"><a href="#cb2-10" tabindex="-1"></a><span class="fu">unzip</span>(<span class="st">&quot;moser.zip&quot;</span>)</span>
-<span id="cb2-11"><a href="#cb2-11" tabindex="-1"></a></span>
-<span id="cb2-12"><a href="#cb2-12" tabindex="-1"></a>df <span class="ot">&lt;-</span> <span class="fu">as.data.frame</span>(<span class="fu">read_excel</span>(<span class="st">&quot;E220RANK_Acute.xlsx&quot;</span>))</span>
-<span id="cb2-13"><a href="#cb2-13" tabindex="-1"></a><span class="co">#&gt; New names:</span></span>
-<span id="cb2-14"><a href="#cb2-14" tabindex="-1"></a><span class="co">#&gt; • `PALPEBRAL_CLOSURE` -&gt; `PALPEBRAL_CLOSURE...6`</span></span>
-<span id="cb2-15"><a href="#cb2-15" tabindex="-1"></a><span class="co">#&gt; • `PALPEBRAL_CLOSURE` -&gt; `PALPEBRAL_CLOSURE...10`</span></span>
-<span id="cb2-16"><a href="#cb2-16" tabindex="-1"></a></span>
-<span id="cb2-17"><a href="#cb2-17" tabindex="-1"></a><span class="co"># Restrict to dose groups 0 and 1500 at time point 4</span></span>
-<span id="cb2-18"><a href="#cb2-18" tabindex="-1"></a>dat_raw <span class="ot">&lt;-</span> df[</span>
-<span id="cb2-19"><a href="#cb2-19" tabindex="-1"></a>  df<span class="sc">$</span>DOSE_CODE <span class="sc">%in%</span> <span class="fu">c</span>(<span class="dv">0</span>, <span class="dv">1500</span>) <span class="sc">&amp;</span></span>
-<span id="cb2-20"><a href="#cb2-20" tabindex="-1"></a>    df<span class="sc">$</span>TIME_OF_TESTING <span class="sc">==</span> <span class="dv">4</span>,</span>
-<span id="cb2-21"><a href="#cb2-21" tabindex="-1"></a>  <span class="sc">-</span><span class="fu">c</span>(<span class="dv">1</span><span class="sc">:</span><span class="dv">2</span>, <span class="dv">4</span>, <span class="dv">33</span><span class="sc">:</span><span class="dv">38</span>)</span>
-<span id="cb2-22"><a href="#cb2-22" tabindex="-1"></a>]</span>
-<span id="cb2-23"><a href="#cb2-23" tabindex="-1"></a></span>
-<span id="cb2-24"><a href="#cb2-24" tabindex="-1"></a><span class="co"># Convert variables to numeric</span></span>
-<span id="cb2-25"><a href="#cb2-25" tabindex="-1"></a>dat_num <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
-<span id="cb2-26"><a href="#cb2-26" tabindex="-1"></a>  <span class="fu">lapply</span>(dat_raw, <span class="cf">function</span>(x) <span class="fu">as.numeric</span>(<span class="fu">as.character</span>(x))),</span>
-<span id="cb2-27"><a href="#cb2-27" tabindex="-1"></a>  <span class="at">check.names =</span> <span class="cn">FALSE</span></span>
-<span id="cb2-28"><a href="#cb2-28" tabindex="-1"></a>)</span>
-<span id="cb2-29"><a href="#cb2-29" tabindex="-1"></a></span>
-<span id="cb2-30"><a href="#cb2-30" tabindex="-1"></a><span class="co"># Group endpoints by functional domain</span></span>
-<span id="cb2-31"><a href="#cb2-31" tabindex="-1"></a>endpoints_by_domain <span class="ot">&lt;-</span> <span class="fu">list</span>(</span>
-<span id="cb2-32"><a href="#cb2-32" tabindex="-1"></a>  <span class="at">Autonomic =</span> <span class="fu">c</span>(</span>
-<span id="cb2-33"><a href="#cb2-33" tabindex="-1"></a>    <span class="st">&quot;LACRIMATION&quot;</span>, <span class="st">&quot;SALIVATION&quot;</span>, <span class="st">&quot;PALPEBRAL_CLOSURE...6&quot;</span>,</span>
-<span id="cb2-34"><a href="#cb2-34" tabindex="-1"></a>    <span class="st">&quot;PUPIL_RESPONSE&quot;</span>, <span class="st">&quot;URINATION&quot;</span>, <span class="st">&quot;DEFECATION&quot;</span></span>
-<span id="cb2-35"><a href="#cb2-35" tabindex="-1"></a>  ),</span>
-<span id="cb2-36"><a href="#cb2-36" tabindex="-1"></a>  <span class="at">Activity =</span> <span class="fu">c</span>(</span>
-<span id="cb2-37"><a href="#cb2-37" tabindex="-1"></a>    <span class="st">&quot;REARS&quot;</span>, <span class="st">&quot;HOME_CAGE_POSTURE&quot;</span></span>
-<span id="cb2-38"><a href="#cb2-38" tabindex="-1"></a>  ),</span>
-<span id="cb2-39"><a href="#cb2-39" tabindex="-1"></a>  <span class="at">Excitability =</span> <span class="fu">c</span>(</span>
-<span id="cb2-40"><a href="#cb2-40" tabindex="-1"></a>    <span class="st">&quot;EASE_OF_REMOVAL&quot;</span>, <span class="st">&quot;EASE_OF_HANDLING&quot;</span>, <span class="st">&quot;AROUSAL&quot;</span>,</span>
-<span id="cb2-41"><a href="#cb2-41" tabindex="-1"></a>    <span class="st">&quot;CLONIC_CONVULSIONS&quot;</span>, <span class="st">&quot;TONIC_CONVULSIONS&quot;</span></span>
-<span id="cb2-42"><a href="#cb2-42" tabindex="-1"></a>  ),</span>
-<span id="cb2-43"><a href="#cb2-43" tabindex="-1"></a>  <span class="at">Neuromuscular =</span> <span class="fu">c</span>(</span>
-<span id="cb2-44"><a href="#cb2-44" tabindex="-1"></a>    <span class="st">&quot;GAIT_SCORE&quot;</span>, <span class="st">&quot;RIGHTING_REFLEX&quot;</span>, <span class="st">&quot;FORELIMB_GRIP&quot;</span>,</span>
-<span id="cb2-45"><a href="#cb2-45" tabindex="-1"></a>    <span class="st">&quot;HINDLIMB_GRIP&quot;</span>, <span class="st">&quot;FOOT_SPLAY&quot;</span></span>
-<span id="cb2-46"><a href="#cb2-46" tabindex="-1"></a>  ),</span>
-<span id="cb2-47"><a href="#cb2-47" tabindex="-1"></a>  <span class="at">Sensorimotor =</span> <span class="fu">c</span>(</span>
-<span id="cb2-48"><a href="#cb2-48" tabindex="-1"></a>    <span class="st">&quot;TAIL_PINCH_RESPONSE&quot;</span>, <span class="st">&quot;CLICK_RESPONSE&quot;</span>,</span>
-<span id="cb2-49"><a href="#cb2-49" tabindex="-1"></a>    <span class="st">&quot;TOUCH_RESPONSE&quot;</span>, <span class="st">&quot;APPROACH_RESPONSE&quot;</span></span>
-<span id="cb2-50"><a href="#cb2-50" tabindex="-1"></a>  ),</span>
-<span id="cb2-51"><a href="#cb2-51" tabindex="-1"></a>  <span class="at">Physiological_measures =</span> <span class="fu">c</span>(</span>
-<span id="cb2-52"><a href="#cb2-52" tabindex="-1"></a>    <span class="st">&quot;BODY_WEIGHT&quot;</span>, <span class="st">&quot;BODY_TEMPERATURE&quot;</span>, <span class="st">&quot;PILOERECTION&quot;</span></span>
-<span id="cb2-53"><a href="#cb2-53" tabindex="-1"></a>  ),</span>
-<span id="cb2-54"><a href="#cb2-54" tabindex="-1"></a>  <span class="at">Other =</span> <span class="fu">c</span>(</span>
-<span id="cb2-55"><a href="#cb2-55" tabindex="-1"></a>    <span class="st">&quot;DOSE_CODE&quot;</span>, <span class="st">&quot;MOBILITY_SCORE&quot;</span>, <span class="st">&quot;VOCALIZATIONS&quot;</span>,</span>
-<span id="cb2-56"><a href="#cb2-56" tabindex="-1"></a>    <span class="st">&quot;PALPEBRAL_CLOSURE...10&quot;</span></span>
-<span id="cb2-57"><a href="#cb2-57" tabindex="-1"></a>  )</span>
-<span id="cb2-58"><a href="#cb2-58" tabindex="-1"></a>)</span>
-<span id="cb2-59"><a href="#cb2-59" tabindex="-1"></a></span>
-<span id="cb2-60"><a href="#cb2-60" tabindex="-1"></a><span class="co"># Select domains for analysis</span></span>
-<span id="cb2-61"><a href="#cb2-61" tabindex="-1"></a>domains_keep <span class="ot">&lt;-</span> <span class="fu">c</span>(</span>
-<span id="cb2-62"><a href="#cb2-62" tabindex="-1"></a>  <span class="st">&quot;Autonomic&quot;</span>,</span>
-<span id="cb2-63"><a href="#cb2-63" tabindex="-1"></a>  <span class="st">&quot;Activity&quot;</span>,</span>
-<span id="cb2-64"><a href="#cb2-64" tabindex="-1"></a>  <span class="st">&quot;Excitability&quot;</span>,</span>
-<span id="cb2-65"><a href="#cb2-65" tabindex="-1"></a>  <span class="st">&quot;Neuromuscular&quot;</span>,</span>
-<span id="cb2-66"><a href="#cb2-66" tabindex="-1"></a>  <span class="st">&quot;Sensorimotor&quot;</span>,</span>
-<span id="cb2-67"><a href="#cb2-67" tabindex="-1"></a>  <span class="st">&quot;Physiological_measures&quot;</span></span>
-<span id="cb2-68"><a href="#cb2-68" tabindex="-1"></a>)</span>
-<span id="cb2-69"><a href="#cb2-69" tabindex="-1"></a></span>
-<span id="cb2-70"><a href="#cb2-70" tabindex="-1"></a>cols_keep <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">&quot;DOSE_CODE&quot;</span>, <span class="fu">unlist</span>(endpoints_by_domain[domains_keep]))</span>
-<span id="cb2-71"><a href="#cb2-71" tabindex="-1"></a>dat <span class="ot">&lt;-</span> dat_num[, <span class="fu">intersect</span>(cols_keep, <span class="fu">names</span>(dat_num)), drop <span class="ot">=</span> <span class="cn">FALSE</span>]</span></code></pre></div>
-<p>Score-free test statistic</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a>Tmax <span class="ot">&lt;-</span> <span class="cf">function</span>(Y1, Y2, <span class="at">K =</span> <span class="dv">4</span>) {</span>
-<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a>  <span class="co"># Ordered categories assumed to be 1,2,3,4 (K=4 by default).</span></span>
-<span id="cb3-3"><a href="#cb3-3" tabindex="-1"></a>  <span class="co"># Works even if some categories are not observed.</span></span>
-<span id="cb3-4"><a href="#cb3-4" tabindex="-1"></a>  </span>
-<span id="cb3-5"><a href="#cb3-5" tabindex="-1"></a>  <span class="co"># drop NAs</span></span>
-<span id="cb3-6"><a href="#cb3-6" tabindex="-1"></a>  Y1 <span class="ot">&lt;-</span> Y1[<span class="sc">!</span><span class="fu">is.na</span>(Y1)]</span>
-<span id="cb3-7"><a href="#cb3-7" tabindex="-1"></a>  Y2 <span class="ot">&lt;-</span> Y2[<span class="sc">!</span><span class="fu">is.na</span>(Y2)]</span>
-<span id="cb3-8"><a href="#cb3-8" tabindex="-1"></a>  </span>
-<span id="cb3-9"><a href="#cb3-9" tabindex="-1"></a>  <span class="co"># basic checks</span></span>
-<span id="cb3-10"><a href="#cb3-10" tabindex="-1"></a>  <span class="cf">if</span> (<span class="fu">length</span>(Y1) <span class="sc">==</span> <span class="dv">0</span> <span class="sc">||</span> <span class="fu">length</span>(Y2) <span class="sc">==</span> <span class="dv">0</span>) <span class="fu">return</span>(<span class="cn">NA_real_</span>)</span>
-<span id="cb3-11"><a href="#cb3-11" tabindex="-1"></a>  <span class="cf">if</span> (<span class="fu">any</span>(<span class="sc">!</span>Y1 <span class="sc">%in%</span> <span class="dv">1</span><span class="sc">:</span>K) <span class="sc">||</span> <span class="fu">any</span>(<span class="sc">!</span>Y2 <span class="sc">%in%</span> <span class="dv">1</span><span class="sc">:</span>K)) {</span>
-<span id="cb3-12"><a href="#cb3-12" tabindex="-1"></a>    <span class="fu">stop</span>(<span class="st">&quot;Y1 and Y2 must take values in {1,2,...,K}.&quot;</span>)</span>
-<span id="cb3-13"><a href="#cb3-13" tabindex="-1"></a>  }</span>
-<span id="cb3-14"><a href="#cb3-14" tabindex="-1"></a>  </span>
-<span id="cb3-15"><a href="#cb3-15" tabindex="-1"></a>  <span class="co"># tabulate counts for all categories 1,...,K</span></span>
-<span id="cb3-16"><a href="#cb3-16" tabindex="-1"></a>  r1 <span class="ot">&lt;-</span> <span class="fu">tabulate</span>(Y1, <span class="at">nbins =</span> K)</span>
-<span id="cb3-17"><a href="#cb3-17" tabindex="-1"></a>  r2 <span class="ot">&lt;-</span> <span class="fu">tabulate</span>(Y2, <span class="at">nbins =</span> K)</span>
-<span id="cb3-18"><a href="#cb3-18" tabindex="-1"></a>  t  <span class="ot">&lt;-</span> r1 <span class="sc">+</span> r2</span>
-<span id="cb3-19"><a href="#cb3-19" tabindex="-1"></a>  </span>
-<span id="cb3-20"><a href="#cb3-20" tabindex="-1"></a>  <span class="co"># keep only pooled-observed categories</span></span>
-<span id="cb3-21"><a href="#cb3-21" tabindex="-1"></a>  idx <span class="ot">&lt;-</span> t <span class="sc">&gt;</span> <span class="dv">0</span></span>
-<span id="cb3-22"><a href="#cb3-22" tabindex="-1"></a>  c   <span class="ot">&lt;-</span> <span class="fu">sum</span>(idx)</span>
-<span id="cb3-23"><a href="#cb3-23" tabindex="-1"></a>  </span>
-<span id="cb3-24"><a href="#cb3-24" tabindex="-1"></a>  n1 <span class="ot">&lt;-</span> <span class="fu">sum</span>(r1)</span>
-<span id="cb3-25"><a href="#cb3-25" tabindex="-1"></a>  n2 <span class="ot">&lt;-</span> <span class="fu">sum</span>(r2)</span>
-<span id="cb3-26"><a href="#cb3-26" tabindex="-1"></a>  <span class="cf">if</span> (n1 <span class="sc">==</span> <span class="dv">0</span> <span class="sc">||</span> n2 <span class="sc">==</span> <span class="dv">0</span>) <span class="fu">return</span>(<span class="cn">NA_real_</span>)</span>
-<span id="cb3-27"><a href="#cb3-27" tabindex="-1"></a>  </span>
-<span id="cb3-28"><a href="#cb3-28" tabindex="-1"></a>  <span class="co"># group indicator</span></span>
-<span id="cb3-29"><a href="#cb3-29" tabindex="-1"></a>  W <span class="ot">&lt;-</span> <span class="fu">rep</span>(<span class="fu">c</span>(<span class="dv">0</span>, <span class="dv">1</span>), <span class="at">times =</span> <span class="fu">c</span>(n1, n2))</span>
-<span id="cb3-30"><a href="#cb3-30" tabindex="-1"></a>  </span>
-<span id="cb3-31"><a href="#cb3-31" tabindex="-1"></a>  <span class="co"># if only one category is observed overall</span></span>
-<span id="cb3-32"><a href="#cb3-32" tabindex="-1"></a>  <span class="cf">if</span> (c <span class="sc">&lt;=</span> <span class="dv">1</span>) <span class="fu">return</span>(<span class="dv">0</span>)</span>
-<span id="cb3-33"><a href="#cb3-33" tabindex="-1"></a>  </span>
-<span id="cb3-34"><a href="#cb3-34" tabindex="-1"></a>  <span class="co"># stochastic ordering check</span></span>
-<span id="cb3-35"><a href="#cb3-35" tabindex="-1"></a>  lhs <span class="ot">&lt;-</span> <span class="fu">cumsum</span>(r2[idx]) <span class="sc">/</span> n2</span>
-<span id="cb3-36"><a href="#cb3-36" tabindex="-1"></a>  rhs <span class="ot">&lt;-</span> <span class="fu">cumsum</span>(r1[idx]) <span class="sc">/</span> n1</span>
-<span id="cb3-37"><a href="#cb3-37" tabindex="-1"></a>  </span>
-<span id="cb3-38"><a href="#cb3-38" tabindex="-1"></a>  <span class="cf">if</span> (<span class="fu">sum</span>(lhs <span class="sc">&gt;=</span> rhs) <span class="sc">==</span> c) {</span>
-<span id="cb3-39"><a href="#cb3-39" tabindex="-1"></a>    </span>
-<span id="cb3-40"><a href="#cb3-40" tabindex="-1"></a>    M <span class="ot">&lt;-</span> <span class="fu">matrix</span>(<span class="dv">0</span>, <span class="at">nrow =</span> c <span class="sc">-</span> <span class="dv">1</span>, <span class="at">ncol =</span> c)</span>
-<span id="cb3-41"><a href="#cb3-41" tabindex="-1"></a>    E <span class="ot">&lt;-</span> <span class="fu">matrix</span>(<span class="dv">0</span>, <span class="at">nrow =</span> c <span class="sc">-</span> <span class="dv">1</span>, <span class="at">ncol =</span> n1 <span class="sc">+</span> n2)</span>
-<span id="cb3-42"><a href="#cb3-42" tabindex="-1"></a>    F <span class="ot">&lt;-</span> <span class="fu">numeric</span>(c <span class="sc">-</span> <span class="dv">1</span>)</span>
-<span id="cb3-43"><a href="#cb3-43" tabindex="-1"></a>    </span>
-<span id="cb3-44"><a href="#cb3-44" tabindex="-1"></a>    <span class="cf">for</span> (i <span class="cf">in</span> <span class="dv">1</span><span class="sc">:</span>(c <span class="sc">-</span> <span class="dv">1</span>)) {</span>
-<span id="cb3-45"><a href="#cb3-45" tabindex="-1"></a>      M[i, ] <span class="ot">&lt;-</span> <span class="fu">rep</span>(<span class="fu">c</span>(<span class="dv">0</span>, <span class="dv">1</span>), <span class="at">times =</span> <span class="fu">c</span>(i, c <span class="sc">-</span> i))</span>
-<span id="cb3-46"><a href="#cb3-46" tabindex="-1"></a>      E[i, ] <span class="ot">&lt;-</span> <span class="fu">rep</span>(<span class="fu">c</span>(M[i, ], M[i, ]),</span>
-<span id="cb3-47"><a href="#cb3-47" tabindex="-1"></a>                    <span class="at">times =</span> <span class="fu">c</span>(r1[idx], r2[idx]))</span>
-<span id="cb3-48"><a href="#cb3-48" tabindex="-1"></a>      F[i]   <span class="ot">&lt;-</span> <span class="fu">suppressWarnings</span>(<span class="fu">cor</span>(E[i, ], W, <span class="at">method =</span> <span class="st">&quot;pearson&quot;</span>))</span>
-<span id="cb3-49"><a href="#cb3-49" tabindex="-1"></a>    }</span>
-<span id="cb3-50"><a href="#cb3-50" tabindex="-1"></a>    </span>
-<span id="cb3-51"><a href="#cb3-51" tabindex="-1"></a>    T <span class="ot">&lt;-</span> <span class="fu">max</span>(F, <span class="at">na.rm =</span> <span class="cn">TRUE</span>)</span>
-<span id="cb3-52"><a href="#cb3-52" tabindex="-1"></a>    </span>
-<span id="cb3-53"><a href="#cb3-53" tabindex="-1"></a>  } <span class="cf">else</span> {</span>
-<span id="cb3-54"><a href="#cb3-54" tabindex="-1"></a>    </span>
-<span id="cb3-55"><a href="#cb3-55" tabindex="-1"></a>    <span class="co"># isotonic regression branch</span></span>
-<span id="cb3-56"><a href="#cb3-56" tabindex="-1"></a>    <span class="cf">if</span> (<span class="sc">!</span><span class="fu">exists</span>(<span class="st">&quot;pava&quot;</span>, <span class="at">mode =</span> <span class="st">&quot;function&quot;</span>)) {</span>
-<span id="cb3-57"><a href="#cb3-57" tabindex="-1"></a>      <span class="fu">stop</span>(<span class="st">&quot;pava() not found. Please source pava.R or load a package providing pava().&quot;</span>)</span>
-<span id="cb3-58"><a href="#cb3-58" tabindex="-1"></a>    }</span>
-<span id="cb3-59"><a href="#cb3-59" tabindex="-1"></a>    </span>
-<span id="cb3-60"><a href="#cb3-60" tabindex="-1"></a>    y   <span class="ot">&lt;-</span> r2[idx] <span class="sc">/</span> t[idx]</span>
-<span id="cb3-61"><a href="#cb3-61" tabindex="-1"></a>    w   <span class="ot">&lt;-</span> t[idx]</span>
-<span id="cb3-62"><a href="#cb3-62" tabindex="-1"></a>    iso <span class="ot">&lt;-</span> <span class="fu">pava</span>(y, w)</span>
-<span id="cb3-63"><a href="#cb3-63" tabindex="-1"></a>    </span>
-<span id="cb3-64"><a href="#cb3-64" tabindex="-1"></a>    Yt  <span class="ot">&lt;-</span> <span class="fu">rep</span>(<span class="fu">c</span>(iso, iso),</span>
-<span id="cb3-65"><a href="#cb3-65" tabindex="-1"></a>               <span class="at">times =</span> <span class="fu">c</span>(r1[idx], r2[idx]))</span>
-<span id="cb3-66"><a href="#cb3-66" tabindex="-1"></a>    T   <span class="ot">&lt;-</span> <span class="fu">suppressWarnings</span>(<span class="fu">cor</span>(Yt, W, <span class="at">method =</span> <span class="st">&quot;pearson&quot;</span>))</span>
-<span id="cb3-67"><a href="#cb3-67" tabindex="-1"></a>  }</span>
-<span id="cb3-68"><a href="#cb3-68" tabindex="-1"></a>  </span>
-<span id="cb3-69"><a href="#cb3-69" tabindex="-1"></a>  <span class="fu">as.numeric</span>(T)</span>
-<span id="cb3-70"><a href="#cb3-70" tabindex="-1"></a>}</span></code></pre></div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a><span class="co"># Load data</span></span>
+<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a>df <span class="ot">&lt;-</span> <span class="fu">read.table</span>(<span class="st">&quot;E220RANK_Acute.csv&quot;</span>,</span>
+<span id="cb3-3"><a href="#cb3-3" tabindex="-1"></a>                 <span class="at">header =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb3-4"><a href="#cb3-4" tabindex="-1"></a>                 <span class="at">sep =</span> <span class="st">&quot;,&quot;</span>)</span>
+<span id="cb3-5"><a href="#cb3-5" tabindex="-1"></a></span>
+<span id="cb3-6"><a href="#cb3-6" tabindex="-1"></a><span class="co"># Restrict to dose groups 0 and 1500 at time point 4</span></span>
+<span id="cb3-7"><a href="#cb3-7" tabindex="-1"></a>dat_raw <span class="ot">&lt;-</span> df[</span>
+<span id="cb3-8"><a href="#cb3-8" tabindex="-1"></a>  df<span class="sc">$</span>DOSE_CODE <span class="sc">%in%</span> <span class="fu">c</span>(<span class="dv">0</span>, <span class="dv">1500</span>) <span class="sc">&amp;</span></span>
+<span id="cb3-9"><a href="#cb3-9" tabindex="-1"></a>    df<span class="sc">$</span>TIME_OF_TESTING <span class="sc">==</span> <span class="dv">4</span>,</span>
+<span id="cb3-10"><a href="#cb3-10" tabindex="-1"></a>  <span class="sc">-</span><span class="fu">c</span>(<span class="dv">1</span><span class="sc">:</span><span class="dv">2</span>, <span class="dv">4</span>, <span class="dv">33</span><span class="sc">:</span><span class="dv">38</span>)</span>
+<span id="cb3-11"><a href="#cb3-11" tabindex="-1"></a>]</span>
+<span id="cb3-12"><a href="#cb3-12" tabindex="-1"></a></span>
+<span id="cb3-13"><a href="#cb3-13" tabindex="-1"></a><span class="co"># Convert variables to numeric</span></span>
+<span id="cb3-14"><a href="#cb3-14" tabindex="-1"></a>dat_num <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb3-15"><a href="#cb3-15" tabindex="-1"></a>  <span class="fu">lapply</span>(dat_raw, <span class="cf">function</span>(x) <span class="fu">as.numeric</span>(<span class="fu">as.character</span>(x))),</span>
+<span id="cb3-16"><a href="#cb3-16" tabindex="-1"></a>  <span class="at">check.names =</span> <span class="cn">FALSE</span></span>
+<span id="cb3-17"><a href="#cb3-17" tabindex="-1"></a>)</span>
+<span id="cb3-18"><a href="#cb3-18" tabindex="-1"></a></span>
+<span id="cb3-19"><a href="#cb3-19" tabindex="-1"></a><span class="co"># Group endpoints by functional domain</span></span>
+<span id="cb3-20"><a href="#cb3-20" tabindex="-1"></a>endpoints_by_domain <span class="ot">&lt;-</span> <span class="fu">list</span>(</span>
+<span id="cb3-21"><a href="#cb3-21" tabindex="-1"></a>  <span class="at">Autonomic =</span> <span class="fu">c</span>(</span>
+<span id="cb3-22"><a href="#cb3-22" tabindex="-1"></a>    <span class="st">&quot;LACRIMATION&quot;</span>, <span class="st">&quot;SALIVATION&quot;</span>, <span class="st">&quot;PALPEBRAL_CLOSURE&quot;</span>,</span>
+<span id="cb3-23"><a href="#cb3-23" tabindex="-1"></a>    <span class="st">&quot;PUPIL_RESPONSE&quot;</span>, <span class="st">&quot;URINATION&quot;</span>, <span class="st">&quot;DEFECATION&quot;</span></span>
+<span id="cb3-24"><a href="#cb3-24" tabindex="-1"></a>  ),</span>
+<span id="cb3-25"><a href="#cb3-25" tabindex="-1"></a>  <span class="at">Activity =</span> <span class="fu">c</span>(</span>
+<span id="cb3-26"><a href="#cb3-26" tabindex="-1"></a>    <span class="st">&quot;REARS&quot;</span>, <span class="st">&quot;HOME_CAGE_POSTURE&quot;</span></span>
+<span id="cb3-27"><a href="#cb3-27" tabindex="-1"></a>  ),</span>
+<span id="cb3-28"><a href="#cb3-28" tabindex="-1"></a>  <span class="at">Excitability =</span> <span class="fu">c</span>(</span>
+<span id="cb3-29"><a href="#cb3-29" tabindex="-1"></a>    <span class="st">&quot;EASE_OF_REMOVAL&quot;</span>, <span class="st">&quot;EASE_OF_HANDLING&quot;</span>, <span class="st">&quot;AROUSAL&quot;</span>,</span>
+<span id="cb3-30"><a href="#cb3-30" tabindex="-1"></a>    <span class="st">&quot;CLONIC_CONVULSIONS&quot;</span>, <span class="st">&quot;TONIC_CONVULSIONS&quot;</span></span>
+<span id="cb3-31"><a href="#cb3-31" tabindex="-1"></a>  ),</span>
+<span id="cb3-32"><a href="#cb3-32" tabindex="-1"></a>  <span class="at">Neuromuscular =</span> <span class="fu">c</span>(</span>
+<span id="cb3-33"><a href="#cb3-33" tabindex="-1"></a>    <span class="st">&quot;GAIT_SCORE&quot;</span>, <span class="st">&quot;RIGHTING_REFLEX&quot;</span>, <span class="st">&quot;FORELIMB_GRIP&quot;</span>,</span>
+<span id="cb3-34"><a href="#cb3-34" tabindex="-1"></a>    <span class="st">&quot;HINDLIMB_GRIP&quot;</span>, <span class="st">&quot;FOOT_SPLAY&quot;</span></span>
+<span id="cb3-35"><a href="#cb3-35" tabindex="-1"></a>  ),</span>
+<span id="cb3-36"><a href="#cb3-36" tabindex="-1"></a>  <span class="at">Sensorimotor =</span> <span class="fu">c</span>(</span>
+<span id="cb3-37"><a href="#cb3-37" tabindex="-1"></a>    <span class="st">&quot;TAIL_PINCH_RESPONSE&quot;</span>, <span class="st">&quot;CLICK_RESPONSE&quot;</span>,</span>
+<span id="cb3-38"><a href="#cb3-38" tabindex="-1"></a>    <span class="st">&quot;TOUCH_RESPONSE&quot;</span>, <span class="st">&quot;APPROACH_RESPONSE&quot;</span></span>
+<span id="cb3-39"><a href="#cb3-39" tabindex="-1"></a>  ),</span>
+<span id="cb3-40"><a href="#cb3-40" tabindex="-1"></a>  <span class="at">Physiological_measures =</span> <span class="fu">c</span>(</span>
+<span id="cb3-41"><a href="#cb3-41" tabindex="-1"></a>    <span class="st">&quot;BODY_WEIGHT&quot;</span>, <span class="st">&quot;BODY_TEMPERATURE&quot;</span>, <span class="st">&quot;PILOERECTION&quot;</span></span>
+<span id="cb3-42"><a href="#cb3-42" tabindex="-1"></a>  ),</span>
+<span id="cb3-43"><a href="#cb3-43" tabindex="-1"></a>  <span class="at">Other =</span> <span class="fu">c</span>(</span>
+<span id="cb3-44"><a href="#cb3-44" tabindex="-1"></a>    <span class="st">&quot;DOSE_CODE&quot;</span>, <span class="st">&quot;MOBILITY_SCORE&quot;</span>, <span class="st">&quot;VOCALIZATIONS&quot;</span>,</span>
+<span id="cb3-45"><a href="#cb3-45" tabindex="-1"></a>    <span class="st">&quot;PALPEBRAL_CLOSURE.1&quot;</span></span>
+<span id="cb3-46"><a href="#cb3-46" tabindex="-1"></a>  )</span>
+<span id="cb3-47"><a href="#cb3-47" tabindex="-1"></a>)</span>
+<span id="cb3-48"><a href="#cb3-48" tabindex="-1"></a></span>
+<span id="cb3-49"><a href="#cb3-49" tabindex="-1"></a><span class="co"># Select domains for analysis</span></span>
+<span id="cb3-50"><a href="#cb3-50" tabindex="-1"></a>domains_keep <span class="ot">&lt;-</span> <span class="fu">c</span>(</span>
+<span id="cb3-51"><a href="#cb3-51" tabindex="-1"></a>  <span class="st">&quot;Autonomic&quot;</span>,</span>
+<span id="cb3-52"><a href="#cb3-52" tabindex="-1"></a>  <span class="st">&quot;Activity&quot;</span>,</span>
+<span id="cb3-53"><a href="#cb3-53" tabindex="-1"></a>  <span class="st">&quot;Excitability&quot;</span>,</span>
+<span id="cb3-54"><a href="#cb3-54" tabindex="-1"></a>  <span class="st">&quot;Neuromuscular&quot;</span>,</span>
+<span id="cb3-55"><a href="#cb3-55" tabindex="-1"></a>  <span class="st">&quot;Sensorimotor&quot;</span>,</span>
+<span id="cb3-56"><a href="#cb3-56" tabindex="-1"></a>  <span class="st">&quot;Physiological_measures&quot;</span></span>
+<span id="cb3-57"><a href="#cb3-57" tabindex="-1"></a>)</span>
+<span id="cb3-58"><a href="#cb3-58" tabindex="-1"></a></span>
+<span id="cb3-59"><a href="#cb3-59" tabindex="-1"></a>cols_keep <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">&quot;DOSE_CODE&quot;</span>, <span class="fu">unlist</span>(endpoints_by_domain[domains_keep]))</span>
+<span id="cb3-60"><a href="#cb3-60" tabindex="-1"></a>dat <span class="ot">&lt;-</span> dat_num[, <span class="fu">intersect</span>(cols_keep, <span class="fu">names</span>(dat_num)), drop <span class="ot">=</span> <span class="cn">FALSE</span>]</span></code></pre></div>
 <p>For each endpoint, marginal counts of severity scores (1–4) for
 adverse effects observed are reported by exposure group (0 and 1.5g/kg).
 Endpoints are grouped into functional domains.</p>
@@ -542,32 +461,32 @@ Endpoints are grouped into functional domains.</p>
 <span id="cb4-35"><a href="#cb4-35" tabindex="-1"></a>pval <span class="ot">&lt;-</span> <span class="fu">apply</span>(Tstat, <span class="dv">2</span>, <span class="cf">function</span>(t) <span class="fu">mean</span>(t <span class="sc">&gt;=</span> t[<span class="dv">1</span>]))</span>
 <span id="cb4-36"><a href="#cb4-36" tabindex="-1"></a></span>
 <span id="cb4-37"><a href="#cb4-37" tabindex="-1"></a><span class="fu">data.frame</span>(mfreq, pval)</span>
-<span id="cb4-38"><a href="#cb4-38" tabindex="-1"></a><span class="co">#&gt;                       X1 X2 X3 X4 X1.1 X2.1 X3.1 X4.1        pval</span></span>
-<span id="cb4-39"><a href="#cb4-39" tabindex="-1"></a><span class="co">#&gt; LACRIMATION            8  0  0  0    5    0    3    0 0.100000000</span></span>
-<span id="cb4-40"><a href="#cb4-40" tabindex="-1"></a><span class="co">#&gt; SALIVATION             8  0  0  0    8    0    0    0 1.000000000</span></span>
-<span id="cb4-41"><a href="#cb4-41" tabindex="-1"></a><span class="co">#&gt; PALPEBRAL_CLOSURE...6  8  0  0  0    7    1    0    0 0.500000000</span></span>
-<span id="cb4-42"><a href="#cb4-42" tabindex="-1"></a><span class="co">#&gt; PUPIL_RESPONSE         7  0  1  0    5    0    3    0 0.284615385</span></span>
-<span id="cb4-43"><a href="#cb4-43" tabindex="-1"></a><span class="co">#&gt; URINATION              4  3  1  0    6    1    1    0 0.861305361</span></span>
-<span id="cb4-44"><a href="#cb4-44" tabindex="-1"></a><span class="co">#&gt; DEFECATION             7  0  0  1    7    1    0    0 0.766666667</span></span>
-<span id="cb4-45"><a href="#cb4-45" tabindex="-1"></a><span class="co">#&gt; REARS                  5  2  1  0    4    2    2    0 0.382517483</span></span>
-<span id="cb4-46"><a href="#cb4-46" tabindex="-1"></a><span class="co">#&gt; HOME_CAGE_POSTURE      8  0  0  0    7    0    1    0 0.500000000</span></span>
-<span id="cb4-47"><a href="#cb4-47" tabindex="-1"></a><span class="co">#&gt; EASE_OF_REMOVAL        0  8  0  0    0    7    1    0 0.500000000</span></span>
-<span id="cb4-48"><a href="#cb4-48" tabindex="-1"></a><span class="co">#&gt; EASE_OF_HANDLING       6  2  0  0    4    4    0    0 0.304195804</span></span>
-<span id="cb4-49"><a href="#cb4-49" tabindex="-1"></a><span class="co">#&gt; AROUSAL                4  3  1  0    3    0    3    2 0.052369852</span></span>
-<span id="cb4-50"><a href="#cb4-50" tabindex="-1"></a><span class="co">#&gt; CLONIC_CONVULSIONS     4  4  0  0    5    3    0    0 0.842657343</span></span>
-<span id="cb4-51"><a href="#cb4-51" tabindex="-1"></a><span class="co">#&gt; TONIC_CONVULSIONS      8  0  0  0    8    0    0    0 1.000000000</span></span>
-<span id="cb4-52"><a href="#cb4-52" tabindex="-1"></a><span class="co">#&gt; GAIT_SCORE             8  0  0  0    3    5    0    0 0.012820513</span></span>
-<span id="cb4-53"><a href="#cb4-53" tabindex="-1"></a><span class="co">#&gt; RIGHTING_REFLEX        8  0  0  0    5    2    1    0 0.100000000</span></span>
-<span id="cb4-54"><a href="#cb4-54" tabindex="-1"></a><span class="co">#&gt; FORELIMB_GRIP          5  2  1  0    2    1    0    5 0.013209013</span></span>
-<span id="cb4-55"><a href="#cb4-55" tabindex="-1"></a><span class="co">#&gt; HINDLIMB_GRIP          5  3  0  0    0    6    1    1 0.006526807</span></span>
-<span id="cb4-56"><a href="#cb4-56" tabindex="-1"></a><span class="co">#&gt; FOOT_SPLAY             6  1  1  0    6    1    1    0 0.838461538</span></span>
-<span id="cb4-57"><a href="#cb4-57" tabindex="-1"></a><span class="co">#&gt; TAIL_PINCH_RESPONSE    6  0  2  0    5    0    3    0 0.500000000</span></span>
-<span id="cb4-58"><a href="#cb4-58" tabindex="-1"></a><span class="co">#&gt; CLICK_RESPONSE         7  0  1  0    7    0    1    0 0.766666667</span></span>
-<span id="cb4-59"><a href="#cb4-59" tabindex="-1"></a><span class="co">#&gt; TOUCH_RESPONSE         8  0  0  0    6    0    0    2 0.233333333</span></span>
-<span id="cb4-60"><a href="#cb4-60" tabindex="-1"></a><span class="co">#&gt; APPROACH_RESPONSE      8  0  0  0    4    0    3    1 0.038461538</span></span>
-<span id="cb4-61"><a href="#cb4-61" tabindex="-1"></a><span class="co">#&gt; BODY_WEIGHT            6  1  1  0    4    2    0    2 0.176923077</span></span>
-<span id="cb4-62"><a href="#cb4-62" tabindex="-1"></a><span class="co">#&gt; BODY_TEMPERATURE       6  1  1  0    4    3    0    1 0.317249417</span></span>
-<span id="cb4-63"><a href="#cb4-63" tabindex="-1"></a><span class="co">#&gt; PILOERECTION           8  0  0  0    8    0    0    0 1.000000000</span></span></code></pre></div>
+<span id="cb4-38"><a href="#cb4-38" tabindex="-1"></a><span class="co">#&gt;                     X1 X2 X3 X4 X1.1 X2.1 X3.1 X4.1        pval</span></span>
+<span id="cb4-39"><a href="#cb4-39" tabindex="-1"></a><span class="co">#&gt; LACRIMATION          8  0  0  0    5    0    3    0 0.100000000</span></span>
+<span id="cb4-40"><a href="#cb4-40" tabindex="-1"></a><span class="co">#&gt; SALIVATION           8  0  0  0    8    0    0    0 1.000000000</span></span>
+<span id="cb4-41"><a href="#cb4-41" tabindex="-1"></a><span class="co">#&gt; PALPEBRAL_CLOSURE    8  0  0  0    7    1    0    0 0.500000000</span></span>
+<span id="cb4-42"><a href="#cb4-42" tabindex="-1"></a><span class="co">#&gt; PUPIL_RESPONSE       7  0  1  0    5    0    3    0 0.284615385</span></span>
+<span id="cb4-43"><a href="#cb4-43" tabindex="-1"></a><span class="co">#&gt; URINATION            4  3  1  0    6    1    1    0 0.861305361</span></span>
+<span id="cb4-44"><a href="#cb4-44" tabindex="-1"></a><span class="co">#&gt; DEFECATION           7  0  0  1    7    1    0    0 0.766666667</span></span>
+<span id="cb4-45"><a href="#cb4-45" tabindex="-1"></a><span class="co">#&gt; REARS                5  2  1  0    4    2    2    0 0.382517483</span></span>
+<span id="cb4-46"><a href="#cb4-46" tabindex="-1"></a><span class="co">#&gt; HOME_CAGE_POSTURE    8  0  0  0    7    0    1    0 0.500000000</span></span>
+<span id="cb4-47"><a href="#cb4-47" tabindex="-1"></a><span class="co">#&gt; EASE_OF_REMOVAL      0  8  0  0    0    7    1    0 0.500000000</span></span>
+<span id="cb4-48"><a href="#cb4-48" tabindex="-1"></a><span class="co">#&gt; EASE_OF_HANDLING     6  2  0  0    4    4    0    0 0.304195804</span></span>
+<span id="cb4-49"><a href="#cb4-49" tabindex="-1"></a><span class="co">#&gt; AROUSAL              4  3  1  0    3    0    3    2 0.052369852</span></span>
+<span id="cb4-50"><a href="#cb4-50" tabindex="-1"></a><span class="co">#&gt; CLONIC_CONVULSIONS   4  4  0  0    5    3    0    0 0.842657343</span></span>
+<span id="cb4-51"><a href="#cb4-51" tabindex="-1"></a><span class="co">#&gt; TONIC_CONVULSIONS    8  0  0  0    8    0    0    0 1.000000000</span></span>
+<span id="cb4-52"><a href="#cb4-52" tabindex="-1"></a><span class="co">#&gt; GAIT_SCORE           8  0  0  0    3    5    0    0 0.012820513</span></span>
+<span id="cb4-53"><a href="#cb4-53" tabindex="-1"></a><span class="co">#&gt; RIGHTING_REFLEX      8  0  0  0    5    2    1    0 0.100000000</span></span>
+<span id="cb4-54"><a href="#cb4-54" tabindex="-1"></a><span class="co">#&gt; FORELIMB_GRIP        5  2  1  0    2    1    0    5 0.013209013</span></span>
+<span id="cb4-55"><a href="#cb4-55" tabindex="-1"></a><span class="co">#&gt; HINDLIMB_GRIP        5  3  0  0    0    6    1    1 0.006526807</span></span>
+<span id="cb4-56"><a href="#cb4-56" tabindex="-1"></a><span class="co">#&gt; FOOT_SPLAY           6  1  1  0    6    1    1    0 0.838461538</span></span>
+<span id="cb4-57"><a href="#cb4-57" tabindex="-1"></a><span class="co">#&gt; TAIL_PINCH_RESPONSE  6  0  2  0    5    0    3    0 0.500000000</span></span>
+<span id="cb4-58"><a href="#cb4-58" tabindex="-1"></a><span class="co">#&gt; CLICK_RESPONSE       7  0  1  0    7    0    1    0 0.766666667</span></span>
+<span id="cb4-59"><a href="#cb4-59" tabindex="-1"></a><span class="co">#&gt; TOUCH_RESPONSE       8  0  0  0    6    0    0    2 0.233333333</span></span>
+<span id="cb4-60"><a href="#cb4-60" tabindex="-1"></a><span class="co">#&gt; APPROACH_RESPONSE    8  0  0  0    4    0    3    1 0.038461538</span></span>
+<span id="cb4-61"><a href="#cb4-61" tabindex="-1"></a><span class="co">#&gt; BODY_WEIGHT          6  1  1  0    4    2    0    2 0.176923077</span></span>
+<span id="cb4-62"><a href="#cb4-62" tabindex="-1"></a><span class="co">#&gt; BODY_TEMPERATURE     6  1  1  0    4    3    0    1 0.317249417</span></span>
+<span id="cb4-63"><a href="#cb4-63" tabindex="-1"></a><span class="co">#&gt; PILOERECTION         8  0  0  0    8    0    0    0 1.000000000</span></span></code></pre></div>
 <p>Domain-wise combined <span class="math inline">\(p\)</span>-values.</p>
 <div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a><span class="co"># ---- Domain-wise combination </span></span>
 <span id="cb5-2"><a href="#cb5-2" tabindex="-1"></a>domains <span class="ot">&lt;-</span> endpoints_by_domain[<span class="sc">-</span><span class="fu">length</span>(endpoints_by_domain)]</span>
@@ -577,7 +496,7 @@ Endpoints are grouped into functional domains.</p>
 <span id="cb5-6"><a href="#cb5-6" tabindex="-1"></a>comb_funs <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">&quot;Bonferroni&quot;</span>,<span class="st">&quot;Simes&quot;</span>,<span class="st">&quot;Hommel+&quot;</span>,<span class="st">&quot;Fisher&quot;</span>,<span class="st">&quot;Average&quot;</span>,<span class="st">&quot;Median&quot;</span>,<span class="st">&quot;Cauchy&quot;</span>,<span class="st">&quot;Harmonic&quot;</span>)</span>
 <span id="cb5-7"><a href="#cb5-7" tabindex="-1"></a></span>
 <span id="cb5-8"><a href="#cb5-8" tabindex="-1"></a>res <span class="ot">&lt;-</span> <span class="fu">matrix</span>(<span class="cn">NA</span>, <span class="at">nrow =</span> <span class="fu">length</span>(domains), <span class="at">ncol =</span> <span class="fu">length</span>(comb_funs) <span class="sc">*</span> <span class="dv">2</span>)</span>
-<span id="cb5-9"><a href="#cb5-9" tabindex="-1"></a><span class="fu">colnames</span>(res) <span class="ot">&lt;-</span> <span class="fu">c</span>(comb_funs, <span class="fu">paste0</span>(comb_funs, <span class="st">&quot;U&quot;</span>))</span>
+<span id="cb5-9"><a href="#cb5-9" tabindex="-1"></a><span class="fu">colnames</span>(res) <span class="ot">&lt;-</span> <span class="fu">c</span>(comb_funs, <span class="fu">paste0</span>(<span class="st">&quot;U-&quot;</span>,comb_funs))</span>
 <span id="cb5-10"><a href="#cb5-10" tabindex="-1"></a><span class="fu">rownames</span>(res) <span class="ot">&lt;-</span> <span class="fu">paste</span>(<span class="fu">names</span>(domains), <span class="st">&quot; (&quot;</span>,<span class="fu">sapply</span>(domains,length),<span class="st">&quot;)&quot;</span>, <span class="at">sep=</span><span class="st">&quot;&quot;</span>)</span>
 <span id="cb5-11"><a href="#cb5-11" tabindex="-1"></a></span>
 <span id="cb5-12"><a href="#cb5-12" tabindex="-1"></a><span class="cf">for</span> (d <span class="cf">in</span> <span class="fu">seq_along</span>(domains)) {</span>
@@ -654,22 +573,22 @@ Endpoints are grouped into functional domains.</p>
 <span id="cb5-83"><a href="#cb5-83" tabindex="-1"></a><span class="co">#&gt; Neuromuscular (5)          0.015073815 0.0003108003 0.002952603 0.003030303</span></span>
 <span id="cb5-84"><a href="#cb5-84" tabindex="-1"></a><span class="co">#&gt; Sensorimotor (4)           0.046386946 0.1986790987 0.023387723 0.032090132</span></span>
 <span id="cb5-85"><a href="#cb5-85" tabindex="-1"></a><span class="co">#&gt; Physiological_measures (3) 0.084459984 0.0920745921 1.000000000 0.201942502</span></span>
-<span id="cb5-86"><a href="#cb5-86" tabindex="-1"></a><span class="co">#&gt;                            BonferroniU     SimesU   Hommel+U   FisherU</span></span>
-<span id="cb5-87"><a href="#cb5-87" tabindex="-1"></a><span class="co">#&gt; All (25)                    0.16317016 0.11007511 0.31127199 0.6421881</span></span>
-<span id="cb5-88"><a href="#cb5-88" tabindex="-1"></a><span class="co">#&gt; Autonomic (6)               0.60000000 0.60000000 1.00000000 1.0000000</span></span>
-<span id="cb5-89"><a href="#cb5-89" tabindex="-1"></a><span class="co">#&gt; Activity (2)                0.76503497 0.50000000 0.75000000 0.8746628</span></span>
-<span id="cb5-90"><a href="#cb5-90" tabindex="-1"></a><span class="co">#&gt; Excitability (5)            0.26184926 0.26184926 0.59788915 0.9918218</span></span>
-<span id="cb5-91"><a href="#cb5-91" tabindex="-1"></a><span class="co">#&gt; Neuromuscular (5)           0.03263403 0.02201502 0.04308654 0.1057924</span></span>
-<span id="cb5-92"><a href="#cb5-92" tabindex="-1"></a><span class="co">#&gt; Sensorimotor (4)            0.15384615 0.15384615 0.32051282 0.6437771</span></span>
-<span id="cb5-93"><a href="#cb5-93" tabindex="-1"></a><span class="co">#&gt; Physiological_measures (3)  0.53076923 0.47587413 0.87243590 0.9665033</span></span>
-<span id="cb5-94"><a href="#cb5-94" tabindex="-1"></a><span class="co">#&gt;                             AverageU    MedianU CauchyU  HarmonicU</span></span>
-<span id="cb5-95"><a href="#cb5-95" tabindex="-1"></a><span class="co">#&gt; All (25)                   0.8878384 0.76503497      NA 0.32415664</span></span>
-<span id="cb5-96"><a href="#cb5-96" tabindex="-1"></a><span class="co">#&gt; Autonomic (6)              1.0000000 1.00000000      NA 1.00000000</span></span>
-<span id="cb5-97"><a href="#cb5-97" tabindex="-1"></a><span class="co">#&gt; Activity (2)               0.8825175 0.76503497      NA         NA</span></span>
-<span id="cb5-98"><a href="#cb5-98" tabindex="-1"></a><span class="co">#&gt; Excitability (5)           1.0000000 1.00000000      NA 0.59316018</span></span>
-<span id="cb5-99"><a href="#cb5-99" tabindex="-1"></a><span class="co">#&gt; Neuromuscular (5)          0.3884071 0.02641803      NA 0.04819397</span></span>
-<span id="cb5-100"><a href="#cb5-100" tabindex="-1"></a><span class="co">#&gt; Sensorimotor (4)           0.7692308 0.46666667      NA 0.31214079</span></span>
-<span id="cb5-101"><a href="#cb5-101" tabindex="-1"></a><span class="co">#&gt; Physiological_measures (3) 0.9961150 0.63449883      NA 0.74133883</span></span></code></pre></div>
+<span id="cb5-86"><a href="#cb5-86" tabindex="-1"></a><span class="co">#&gt;                            U-Bonferroni    U-Simes  U-Hommel+  U-Fisher</span></span>
+<span id="cb5-87"><a href="#cb5-87" tabindex="-1"></a><span class="co">#&gt; All (25)                     0.16317016 0.11007511 0.31127199 0.6421881</span></span>
+<span id="cb5-88"><a href="#cb5-88" tabindex="-1"></a><span class="co">#&gt; Autonomic (6)                0.60000000 0.60000000 1.00000000 1.0000000</span></span>
+<span id="cb5-89"><a href="#cb5-89" tabindex="-1"></a><span class="co">#&gt; Activity (2)                 0.76503497 0.50000000 0.75000000 0.8746628</span></span>
+<span id="cb5-90"><a href="#cb5-90" tabindex="-1"></a><span class="co">#&gt; Excitability (5)             0.26184926 0.26184926 0.59788915 0.9918218</span></span>
+<span id="cb5-91"><a href="#cb5-91" tabindex="-1"></a><span class="co">#&gt; Neuromuscular (5)            0.03263403 0.02201502 0.04308654 0.1057924</span></span>
+<span id="cb5-92"><a href="#cb5-92" tabindex="-1"></a><span class="co">#&gt; Sensorimotor (4)             0.15384615 0.15384615 0.32051282 0.6437771</span></span>
+<span id="cb5-93"><a href="#cb5-93" tabindex="-1"></a><span class="co">#&gt; Physiological_measures (3)   0.53076923 0.47587413 0.87243590 0.9665033</span></span>
+<span id="cb5-94"><a href="#cb5-94" tabindex="-1"></a><span class="co">#&gt;                            U-Average   U-Median U-Cauchy U-Harmonic</span></span>
+<span id="cb5-95"><a href="#cb5-95" tabindex="-1"></a><span class="co">#&gt; All (25)                   0.8878384 0.76503497       NA 0.32415664</span></span>
+<span id="cb5-96"><a href="#cb5-96" tabindex="-1"></a><span class="co">#&gt; Autonomic (6)              1.0000000 1.00000000       NA 1.00000000</span></span>
+<span id="cb5-97"><a href="#cb5-97" tabindex="-1"></a><span class="co">#&gt; Activity (2)               0.8825175 0.76503497       NA         NA</span></span>
+<span id="cb5-98"><a href="#cb5-98" tabindex="-1"></a><span class="co">#&gt; Excitability (5)           1.0000000 1.00000000       NA 0.59316018</span></span>
+<span id="cb5-99"><a href="#cb5-99" tabindex="-1"></a><span class="co">#&gt; Neuromuscular (5)          0.3884071 0.02641803       NA 0.04819397</span></span>
+<span id="cb5-100"><a href="#cb5-100" tabindex="-1"></a><span class="co">#&gt; Sensorimotor (4)           0.7692308 0.46666667       NA 0.31214079</span></span>
+<span id="cb5-101"><a href="#cb5-101" tabindex="-1"></a><span class="co">#&gt; Physiological_measures (3) 0.9961150 0.63449883       NA 0.74133883</span></span></code></pre></div>
 </div>
 
 
