@@ -26,6 +26,9 @@ Install (if necessary) and load the required R packages:
 ```{r, results='hide', message=F, warning=F, error=F, comment=NA}
 require("pmerge") || install.packages("pmerge")
 require("Iso") || install.packages("Iso")
+require("tidyverse") || install.packages("tidyverse")
+require("ggpubr") || install.packages("ggpubr")
+require("grid") || install.packages("grid")
 ```
 
 Load the score-free test statistic function:
@@ -218,5 +221,152 @@ for (d in seq_along(domains)) {
 }
 
 res
+```
+
+## Simulation study
+
+We consider the Gaussian location-shift model with equicorrelated covariance matrix. For each combination of sparsity level $k$ and correlation $\rho$, the signal strength $h$ is calibrated so that Simes' test at level $\alpha=0.05$ attains target power $1-\beta = 0.7$. The following code computes the calibration matrix:
+
+```{r}
+source("find_h_Simes.R")
+
+m <- 30
+eps <- 1e-4
+l <- 10
+
+rhoVec <- seq(-1/(m - 1) + eps, 1 - eps, length.out = l)
+sVec <- round(seq(1, m, length.out = min(m, l)))
+
+nreps_h <- 1000
+alpha <- 0.05
+target_power <- 0.7
+tol_power <- 0.001
+
+set.seed(123)
+
+h_mat <- matrix(
+  NA_real_,
+  length(sVec), length(rhoVec),
+  dimnames = list(paste0("s=", sVec), paste0("rho=", round(rhoVec, 2)))
+)
+
+for (i in seq_along(rhoVec)) {
+  rho <- rhoVec[i]
+  Sigma <- matrix(rho, m, m); diag(Sigma) <- 1
+  R <- chol(Sigma)
+
+  for (j in seq_along(sVec)) {
+    h_mat[j, i] <- find_h_for_target_power_vec(
+      s = sVec[j], R = R, m = m,
+      target_power = target_power,
+      nreps_h = nreps_h,
+      tol_power = tol_power,
+      alpha = alpha
+    )
+  }
+}
+
+h_mat
+```
+
+We next compare the empirical power of the combining methods under the Gaussian location-shift model using the calibrated values of $h$: 
+
+```{r, fig.width=8, fig.height=12}
+nreps <- 1000
+
+methods <- c("Average", "Bonferroni", "Cauchy", "Fisher",
+             "Harmonic", "Hommel+", "Median", "Stouffer")
+
+comb <- array(NA, c(nreps, length(sVec), length(rhoVec), length(methods)))
+dimnames(comb)[[4]] <- methods
+
+for (i in seq_along(rhoVec)) {
+  rho <- rhoVec[i]
+  Sigma <- matrix(rho, m, m); diag(Sigma) <- 1
+  R <- chol(Sigma)
+
+  for (j in seq_along(sVec)) {
+    s <- sVec[j]
+    theta <- numeric(m); theta[1:s] <- h_mat[j, i] / s
+
+    X <- theta + t(R) %*% matrix(rnorm(m * nreps), m, nreps)
+    P <- pnorm(X, lower.tail = FALSE)
+
+    comb[, j, i, "Average"]    <- 2 * colMeans(P) < alpha
+    comb[, j, i, "Bonferroni"] <- m * apply(P, 2, min) < alpha
+    comb[, j, i, "Median"]     <- 2 * apply(P, 2, median) < alpha
+    comb[, j, i, "Fisher"]     <- apply(P, 2, \(p) pmean(p, 0, "A", TRUE) < alpha)
+    comb[, j, i, "Harmonic"]   <- apply(P, 2, \(p) pharmonic(p, "H2") < alpha)
+    comb[, j, i, "Cauchy"]     <- apply(P, 2, \(p) pCauchy(p, "A", alpha)$Results[2] == "Reject")
+
+    comb[, j, i, "Hommel+"] <- apply(P, 2, \(p) {
+      H <- sum(1 / seq_len(m))
+      sum((H * p <= alpha) / ceiling(m * H * p / alpha)) >= 1
+    })
+
+    comb[, j, i, "Stouffer"] <- colSums(qnorm(1 - P)) >= m * qnorm(1 - alpha)
+  }
+}
+
+i_sel <- unique(round(c(1, length(rhoVec)/3, 2*length(rhoVec)/3, length(rhoVec))))
+j_sel <- unique(round(c(1, length(sVec)/3, 2*length(sVec)/3, length(sVec))))
+
+df_i <- map_dfr(i_sel, \(i)
+  as.data.frame(apply(comb[, , i, ], c(2, 3), mean, na.rm = TRUE)) |>
+    mutate(k = sVec, i = i) |>
+    pivot_longer(all_of(methods), names_to = "Method", values_to = "Power")
+)
+
+df_j <- map_dfr(j_sel, \(j)
+  as.data.frame(apply(comb[, j, , ], c(2, 3), mean, na.rm = TRUE)) |>
+    mutate(rho = rhoVec, j = j) |>
+    pivot_longer(all_of(methods), names_to = "Method", values_to = "Power")
+)
+
+df_i$Method <- factor(df_i$Method, levels = methods)
+df_j$Method <- factor(df_j$Method, levels = methods)
+
+base_theme <- theme_pubr(base_size = 12.5) +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    legend.title = element_blank(),
+    legend.text = element_text(size = 9),
+    strip.text = element_text(size = 10.5),
+    axis.title = element_text(size = 11),
+    axis.text = element_text(size = 9.5),
+    legend.spacing.x = unit(0.12, "cm"),
+    legend.key.width = unit(0.8, "cm"),
+    legend.key.height = unit(0.35, "cm")
+  )
+
+p1 <- ggplot(df_i, aes(k, Power, color = Method)) +
+  geom_line(linewidth = 1) +
+  geom_hline(yintercept = alpha, linetype = "dashed") +
+  geom_hline(yintercept = target_power, linetype = "dotted") +
+  facet_wrap(~ i, ncol = 2,
+             labeller = labeller(i = \(x) paste0("rho = ", round(rhoVec[as.integer(x)], 2)))) +
+  labs(x = "k", y = "Power", title = "Power versus sparsity") +
+  guides(color = guide_legend(nrow = 2, byrow = TRUE)) +
+  base_theme
+
+p2 <- ggplot(df_j, aes(rho, Power, color = Method)) +
+  geom_line(linewidth = 1) +
+  geom_hline(yintercept = alpha, linetype = "dashed") +
+  geom_hline(yintercept = target_power, linetype = "dotted") +
+  facet_wrap(~ j, ncol = 2,
+             labeller = labeller(j = \(x) paste0("k = ", sVec[as.integer(x)]))) +
+  labs(x = expression(rho), y = "Power", title = "Power versus correlation") +
+  guides(color = guide_legend(nrow = 2, byrow = TRUE)) +
+  base_theme
+
+p_all <- ggarrange(
+  p1, p2,
+  ncol = 1, nrow = 2,
+  labels = c("A", "B"),
+  common.legend = TRUE,
+  legend = "bottom"
+)
+
+p_all
 ```
 
